@@ -9,29 +9,17 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 
 	"github.com/google/go-github/v40/github"
 
 	"golang.org/x/oauth2"
 )
-
-// Fetch all the public organizations' membership of a user.
-//
-func fetchOrganizations(username string) ([]*github.Repository, error) {
-	client := github.NewClient(nil)
-	orgs, _, err := client.Repositories.List(context.Background(), username, nil)
-	return orgs, err
-}
-
-// func fetchUsers(username string) ([]*github.User, error) {
-// 	client := github.NewClient(nil)
-// 	opts :=
-// 	users, _, err := client.Users.ListAll(context.Background(), opts)
-// 	return users, err
-// }
 
 func main() {
 	//fmt.Print("Enter User Location : ")
@@ -43,6 +31,7 @@ func main() {
 	ctx := context.Background()
 
 	var token string = os.Getenv("PAT")
+	fmt.Println(token)
 
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -57,25 +46,41 @@ func main() {
 	}
 	// get all pages of results
 	var allUsers []*github.User
+	var userData []string
 	for {
-
-		// if lastId > 0 {
-		// 	opt.Since = int64(lastId)
-		// }
-
 		// https://docs.github.com/en/rest/reference/search#search-users
-		query := "language:go location:italy"
+		query := "language:dotnet location:italy"
+		//query := "user:crixo"
 
 		userSearch, resp, err := client.Search.Users(ctx, query, opts)
 		if err != nil {
 			//return err
 		}
 
+		fmt.Println(resp.StatusCode)
+
+		fmt.Println(len(userSearch.Users))
+
 		for _, user := range userSearch.Users {
 			allUsers = append(allUsers, user)
-			fmt.Println(*user.Login)
+			fullUser, _ := fetchUsers(client, *user.ID)
 
-			//lastId = int(*user.ID)
+			var userProps []string
+
+			if fullUser.Login != nil {
+				userProps = append(userProps, fmt.Sprintf("Login: %s", *fullUser.Login))
+			}
+
+			if fullUser.Name != nil {
+				userProps = append(userProps, fmt.Sprintf("Name: %s", *fullUser.Name))
+			}
+			if fullUser.Location != nil {
+				userProps = append(userProps, fmt.Sprintf("Location: %s", *fullUser.Location))
+			}
+			if fullUser.Email != nil {
+				userProps = append(userProps, fmt.Sprintf("Email: %s", *fullUser.Email))
+			}
+			userData = append(userData, strings.Join(userProps, ", "))
 		}
 
 		if resp.NextPage == 0 {
@@ -83,4 +88,28 @@ func main() {
 		}
 		opts.Page = resp.NextPage
 	}
+
+	writeToFile(userData)
+}
+
+func fetchUsers(client *github.Client, userId int64) (*github.User, error) {
+	user, _, err := client.Users.GetByID(context.Background(), userId)
+	return user, err
+}
+
+func writeToFile(userData []string) {
+	file, err := os.OpenFile("test.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	if err != nil {
+		log.Fatalf("failed creating file: %s", err)
+	}
+
+	datawriter := bufio.NewWriter(file)
+
+	for _, data := range userData {
+		_, _ = datawriter.WriteString(data + "\n")
+	}
+
+	datawriter.Flush()
+	file.Close()
 }
