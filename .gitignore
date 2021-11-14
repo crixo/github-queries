@@ -15,5 +15,5 @@
 # vendor/
 
 *.local
-test.txt
+result_*.txt
 github-queries

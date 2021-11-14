@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v40/github"
 
@@ -47,19 +48,18 @@ func main() {
 	// get all pages of results
 	var allUsers []*github.User
 	var userData []string
-	for {
-		// https://docs.github.com/en/rest/reference/search#search-users
-		query := "language:dotnet location:italy"
-		//query := "user:crixo"
+	// https://docs.github.com/en/rest/reference/search#search-users
+	//query := "user:crixo"
+	query := "language:c# location:italy"
 
+	for {
 		userSearch, resp, err := client.Search.Users(ctx, query, opts)
 		if err != nil {
-			//return err
+			panic(err)
 		}
 
-		fmt.Println(resp.StatusCode)
-
-		fmt.Println(len(userSearch.Users))
+		fmt.Println(fmt.Sprintf("Page %d of %d users.", opts.Page, opts.PerPage))
+		//fmt.Println(len(userSearch.Users))
 
 		for _, user := range userSearch.Users {
 			allUsers = append(allUsers, user)
@@ -89,7 +89,7 @@ func main() {
 		opts.Page = resp.NextPage
 	}
 
-	writeToFile(userData)
+	writeToFile(query, userData)
 }
 
 func fetchUsers(client *github.Client, userId int64) (*github.User, error) {
@@ -97,8 +97,18 @@ func fetchUsers(client *github.Client, userId int64) (*github.User, error) {
 	return user, err
 }
 
-func writeToFile(userData []string) {
-	file, err := os.OpenFile("test.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func buildFileName() string {
+	return time.Now().Format("20060102150405")
+}
+
+func MakeQueryToFilename(query string) (queryInFilename string) {
+	replacer := strings.NewReplacer(":", "-", " ", "--", "#", "sharp")
+	return replacer.Replace(query)
+}
+
+func writeToFile(query string, userData []string) {
+	fileName := fmt.Sprintf("%s_%s_%s.txt", "result_", MakeQueryToFilename(query), buildFileName())
+	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	if err != nil {
 		log.Fatalf("failed creating file: %s", err)
